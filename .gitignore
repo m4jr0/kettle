@@ -11,18 +11,10 @@
 *.gch
 *.pch
 
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
 # Compiled Dynamic libraries
 *.so
 *.dylib
 *.dll
-*.so.*
-
 
 # Fortran module files
 *.mod
@@ -39,31 +31,37 @@
 *.out
 *.app
 
-# Build directories
+# Visual Studio
+*.sln
+*.vcxproj*
+.vs/
+Debug/
+x64/
+enc_temp_folder/
+*.user
+TestResults/
+
+# JetBrains IDEs
+.idea/*
+!.idea/codeStyles
+!.idea/codeStyles/Project.xml
+!.idea/inspectionProfiles
+!.idea/vcs.xml
+!.idea/.gitignore
+
+# CMake build
+cmake-build-*/
+
+# Assets
+!**/assets/**
+*.meta
+
+# Vcpkg
+vcpkg/
+.vcpkg/
+
+# Others
 build/
-Build/
-build-*/
+dependencies/
 
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-install_manifest.txt
-compile_commands.json
-
-# Temporary files
-*.tmp
-*.log
-*.bak
-*.swp
-
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+tmp/*

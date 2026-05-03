@@ -1,0 +1,372 @@
+{
+    "version": 1,
+    "nodes": [
+        {
+            "id": 1,
+            "type": "EventBegin",
+            "name": "EventBegin",
+            "position": [
+                120,
+                140
+            ],
+            "pins": [
+                {
+                    "name": "exec",
+                    "type": "exec",
+                    "direction": "output"
+                }
+            ],
+            "properties": {}
+        },
+        {
+            "id": 2,
+            "type": "GetPlayer",
+            "name": "GetPlayer",
+            "position": [
+                360,
+                140
+            ],
+            "pins": [
+                {
+                    "name": "exec",
+                    "type": "exec",
+                    "direction": "input"
+                },
+                {
+                    "name": "then",
+                    "type": "exec",
+                    "direction": "output"
+                },
+                {
+                    "name": "player",
+                    "type": "object",
+                    "direction": "output"
+                }
+            ],
+            "properties": {}
+        },
+        {
+            "id": 3,
+            "type": "GetHealth",
+            "name": "GetHealth",
+            "position": [
+                840,
+                140
+            ],
+            "pins": [
+                {
+                    "name": "exec",
+                    "type": "exec",
+                    "direction": "input"
+                },
+                {
+                    "name": "player",
+                    "type": "object",
+                    "direction": "input"
+                },
+                {
+                    "name": "then",
+                    "type": "exec",
+                    "direction": "output"
+                },
+                {
+                    "name": "health",
+                    "type": "float32",
+                    "direction": "output"
+                }
+            ],
+            "properties": {}
+        },
+        {
+            "id": 9,
+            "type": "Constant",
+            "name": "Constant",
+            "position": [
+                840,
+                360
+            ],
+            "pins": [
+                {
+                    "name": "value",
+                    "type": "float32",
+                    "direction": "output"
+                }
+            ],
+            "properties": {
+                "valueType": {
+                    "type": "string",
+                    "value": "float32"
+                },
+                "value": {
+                    "type": "float32",
+                    "value": 0
+                }
+            }
+        },
+        {
+            "id": 4,
+            "type": "Compare",
+            "name": "Compare",
+            "position": [
+                1080,
+                140
+            ],
+            "pins": [
+                {
+                    "name": "exec",
+                    "type": "exec",
+                    "direction": "input"
+                },
+                {
+                    "name": "a",
+                    "type": "float32",
+                    "direction": "input"
+                },
+                {
+                    "name": "b",
+                    "type": "float32",
+                    "direction": "input"
+                },
+                {
+                    "name": "then",
+                    "type": "exec",
+                    "direction": "output"
+                },
+                {
+                    "name": "result",
+                    "type": "bool",
+                    "direction": "output"
+                }
+            ],
+            "properties": {
+                "valueType": {
+                    "type": "string",
+                    "value": "float32"
+                },
+                "op": {
+                    "type": "string",
+                    "value": "<="
+                }
+            }
+        },
+        {
+            "id": 5,
+            "type": "Branch",
+            "name": "Branch",
+            "position": [
+                1320,
+                140
+            ],
+            "pins": [
+                {
+                    "name": "exec",
+                    "type": "exec",
+                    "direction": "input"
+                },
+                {
+                    "name": "condition",
+                    "type": "bool",
+                    "direction": "input"
+                },
+                {
+                    "name": "true",
+                    "type": "exec",
+                    "direction": "output"
+                },
+                {
+                    "name": "false",
+                    "type": "exec",
+                    "direction": "output"
+                }
+            ],
+            "properties": {}
+        },
+        {
+            "id": 6,
+            "type": "Print",
+            "name": "Print",
+            "position": [
+                1560,
+                80
+            ],
+            "pins": [
+                {
+                    "name": "exec",
+                    "type": "exec",
+                    "direction": "input"
+                },
+                {
+                    "name": "value",
+                    "type": "string",
+                    "direction": "input"
+                },
+                {
+                    "name": "then",
+                    "type": "exec",
+                    "direction": "output"
+                }
+            ],
+            "properties": {
+                "valueType": {
+                    "type": "string",
+                    "value": "string"
+                },
+                "message": {
+                    "type": "string",
+                    "value": "dead"
+                }
+            }
+        },
+        {
+            "id": 7,
+            "type": "Print",
+            "name": "Print",
+            "position": [
+                1560,
+                260
+            ],
+            "pins": [
+                {
+                    "name": "exec",
+                    "type": "exec",
+                    "direction": "input"
+                },
+                {
+                    "name": "value",
+                    "type": "string",
+                    "direction": "input"
+                },
+                {
+                    "name": "then",
+                    "type": "exec",
+                    "direction": "output"
+                }
+            ],
+            "properties": {
+                "valueType": {
+                    "type": "string",
+                    "value": "string"
+                },
+                "message": {
+                    "type": "string",
+                    "value": "alive"
+                }
+            }
+        },
+        {
+            "id": 8,
+            "type": "SetPosition",
+            "name": "SetPosition",
+            "position": [
+                600,
+                140
+            ],
+            "pins": [
+                {
+                    "name": "exec",
+                    "type": "exec",
+                    "direction": "input"
+                },
+                {
+                    "name": "target",
+                    "type": "object",
+                    "direction": "input"
+                },
+                {
+                    "name": "position",
+                    "type": "vec3",
+                    "direction": "input"
+                },
+                {
+                    "name": "then",
+                    "type": "exec",
+                    "direction": "output"
+                }
+            ],
+            "properties": {
+                "position": {
+                    "type": "vec3",
+                    "value": [
+                        10,
+                        2,
+                        5
+                    ]
+                }
+            }
+        }
+    ],
+    "links": [
+        {
+            "from_node": 1,
+            "from_pin": "exec",
+            "to_node": 2,
+            "to_pin": "exec"
+        },
+        {
+            "from_node": 2,
+            "from_pin": "then",
+            "to_node": 8,
+            "to_pin": "exec"
+        },
+        {
+            "from_node": 8,
+            "from_pin": "then",
+            "to_node": 3,
+            "to_pin": "exec"
+        },
+        {
+            "from_node": 3,
+            "from_pin": "then",
+            "to_node": 4,
+            "to_pin": "exec"
+        },
+        {
+            "from_node": 4,
+            "from_pin": "then",
+            "to_node": 5,
+            "to_pin": "exec"
+        },
+        {
+            "from_node": 2,
+            "from_pin": "player",
+            "to_node": 8,
+            "to_pin": "target"
+        },
+        {
+            "from_node": 2,
+            "from_pin": "player",
+            "to_node": 3,
+            "to_pin": "player"
+        },
+        {
+            "from_node": 3,
+            "from_pin": "health",
+            "to_node": 4,
+            "to_pin": "a"
+        },
+        {
+            "from_node": 9,
+            "from_pin": "value",
+            "to_node": 4,
+            "to_pin": "b"
+        },
+        {
+            "from_node": 4,
+            "from_pin": "result",
+            "to_node": 5,
+            "to_pin": "condition"
+        },
+        {
+            "from_node": 5,
+            "from_pin": "true",
+            "to_node": 6,
+            "to_pin": "exec"
+        },
+        {
+            "from_node": 5,
+            "from_pin": "false",
+            "to_node": 7,
+            "to_pin": "exec"
+        }
+    ]
+}

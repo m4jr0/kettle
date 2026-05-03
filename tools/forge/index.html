@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Kettle Forge</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/litegraph.js/css/litegraph.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="toolbar">
+        <div id="node-buttons"></div>
+
+        <button id="export-btn">Export JSON</button>
+
+        <button class="import-btn">
+            Import JSON
+            <input id="import-input" type="file" accept=".json,application/json">
+        </button>
+    </div>
+
+    <canvas id="graph-canvas"></canvas>
+
+    <textarea id="output" placeholder="Exported JSON here."></textarea>
+
+    <script src="https://unpkg.com/litegraph.js/build/litegraph.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
