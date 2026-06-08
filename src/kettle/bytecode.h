@@ -8,6 +8,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <string>
 #include <vector>
 
 namespace kettle
@@ -19,8 +20,6 @@ enum class OpCode : uint8_t
     LoadValue,
     Move,
     CallNative,
-
-    Constant,
 
     // Bool.
     EqualBool,
@@ -124,6 +123,8 @@ enum class OpCode : uint8_t
     Return,
 };
 
+const char* toString(OpCode op);
+
 
 template<typename T>
 inline T readInlineValue(const Value& value)
@@ -173,7 +174,7 @@ struct Program
 {
     std::vector<Instruction> code;
     std::vector<std::byte> constData;
-    uint8_t registerCount = 0;
+    uint8_t maxRegisterCount = 0;
 
     uint32_t addConstData(const void* data, uint32_t size);
 
@@ -218,4 +219,7 @@ struct VM
 
     void execute(const Program& program);
 };
+
+std::string formatProgram(const Program& program);
+void dumpProgram(const Program& program);
 } // namespace kettle

@@ -4,12 +4,210 @@
 
 #include "bytecode.h"
 
+#include <iomanip>
+#include <iostream>
+#include <ostream>
+#include <sstream>
 #include <stdexcept>
 
+#include "log.h"
 #include "value_utils.h"
 
 namespace kettle
 {
+const char* toString(OpCode op)
+{
+    switch (op)
+    {
+    case OpCode::Nop:
+        return "Nop";
+    case OpCode::LoadValue:
+        return "LoadValue";
+    case OpCode::Move:
+        return "Move";
+    case OpCode::CallNative:
+        return "CallNative";
+
+    // Bool.
+    case OpCode::EqualBool:
+        return "EqualBool";
+    case OpCode::NotEqualBool:
+        return "NotEqualBool";
+
+    // Signed integers.
+    case OpCode::LessInt8:
+        return "LessInt8";
+    case OpCode::LessEqualInt8:
+        return "LessEqualInt8";
+    case OpCode::EqualInt8:
+        return "EqualInt8";
+    case OpCode::NotEqualInt8:
+        return "NotEqualInt8";
+    case OpCode::GreaterEqualInt8:
+        return "GreaterEqualInt8";
+    case OpCode::GreaterInt8:
+        return "GreaterInt8";
+
+    case OpCode::LessInt16:
+        return "LessInt16";
+    case OpCode::LessEqualInt16:
+        return "LessEqualInt16";
+    case OpCode::EqualInt16:
+        return "EqualInt16";
+    case OpCode::NotEqualInt16:
+        return "NotEqualInt16";
+    case OpCode::GreaterEqualInt16:
+        return "GreaterEqualInt16";
+    case OpCode::GreaterInt16:
+        return "GreaterInt16";
+
+    case OpCode::LessInt32:
+        return "LessInt32";
+    case OpCode::LessEqualInt32:
+        return "LessEqualInt32";
+    case OpCode::EqualInt32:
+        return "EqualInt32";
+    case OpCode::NotEqualInt32:
+        return "NotEqualInt32";
+    case OpCode::GreaterEqualInt32:
+        return "GreaterEqualInt32";
+    case OpCode::GreaterInt32:
+        return "GreaterInt32";
+
+    case OpCode::LessInt64:
+        return "LessInt64";
+    case OpCode::LessEqualInt64:
+        return "LessEqualInt64";
+    case OpCode::EqualInt64:
+        return "EqualInt64";
+    case OpCode::NotEqualInt64:
+        return "NotEqualInt64";
+    case OpCode::GreaterEqualInt64:
+        return "GreaterEqualInt64";
+    case OpCode::GreaterInt64:
+        return "GreaterInt64";
+
+    // Unsigned integers.
+    case OpCode::LessUInt8:
+        return "LessUInt8";
+    case OpCode::LessEqualUInt8:
+        return "LessEqualUInt8";
+    case OpCode::EqualUInt8:
+        return "EqualUInt8";
+    case OpCode::NotEqualUInt8:
+        return "NotEqualUInt8";
+    case OpCode::GreaterEqualUInt8:
+        return "GreaterEqualUInt8";
+    case OpCode::GreaterUInt8:
+        return "GreaterUInt8";
+
+    case OpCode::LessUInt16:
+        return "LessUInt16";
+    case OpCode::LessEqualUInt16:
+        return "LessEqualUInt16";
+    case OpCode::EqualUInt16:
+        return "EqualUInt16";
+    case OpCode::NotEqualUInt16:
+        return "NotEqualUInt16";
+    case OpCode::GreaterEqualUInt16:
+        return "GreaterEqualUInt16";
+    case OpCode::GreaterUInt16:
+        return "GreaterUInt16";
+
+    case OpCode::LessUInt32:
+        return "LessUInt32";
+    case OpCode::LessEqualUInt32:
+        return "LessEqualUInt32";
+    case OpCode::EqualUInt32:
+        return "EqualUInt32";
+    case OpCode::NotEqualUInt32:
+        return "NotEqualUInt32";
+    case OpCode::GreaterEqualUInt32:
+        return "GreaterEqualUInt32";
+    case OpCode::GreaterUInt32:
+        return "GreaterUInt32";
+
+    case OpCode::LessUInt64:
+        return "LessUInt64";
+    case OpCode::LessEqualUInt64:
+        return "LessEqualUInt64";
+    case OpCode::EqualUInt64:
+        return "EqualUInt64";
+    case OpCode::NotEqualUInt64:
+        return "NotEqualUInt64";
+    case OpCode::GreaterEqualUInt64:
+        return "GreaterEqualUInt64";
+    case OpCode::GreaterUInt64:
+        return "GreaterUInt64";
+
+    // Floating point.
+    case OpCode::LessFloat32:
+        return "LessFloat32";
+    case OpCode::LessEqualFloat32:
+        return "LessEqualFloat32";
+    case OpCode::EqualFloat32:
+        return "EqualFloat32";
+    case OpCode::NotEqualFloat32:
+        return "NotEqualFloat32";
+    case OpCode::GreaterEqualFloat32:
+        return "GreaterEqualFloat32";
+    case OpCode::GreaterFloat32:
+        return "GreaterFloat32";
+
+    case OpCode::LessFloat64:
+        return "LessFloat64";
+    case OpCode::LessEqualFloat64:
+        return "LessEqualFloat64";
+    case OpCode::EqualFloat64:
+        return "EqualFloat64";
+    case OpCode::NotEqualFloat64:
+        return "NotEqualFloat64";
+    case OpCode::GreaterEqualFloat64:
+        return "GreaterEqualFloat64";
+    case OpCode::GreaterFloat64:
+        return "GreaterFloat64";
+
+    // IDs / handles.
+    case OpCode::EqualStringId:
+        return "EqualStringId";
+    case OpCode::NotEqualStringId:
+        return "NotEqualStringId";
+
+    case OpCode::EqualObjectHandle:
+        return "EqualObjectHandle";
+    case OpCode::NotEqualObjectHandle:
+        return "NotEqualObjectHandle";
+
+    // Vectors.
+    case OpCode::EqualVec2:
+        return "EqualVec2";
+    case OpCode::NotEqualVec2:
+        return "NotEqualVec2";
+
+    case OpCode::EqualVec3:
+        return "EqualVec3";
+    case OpCode::NotEqualVec3:
+        return "NotEqualVec3";
+
+    case OpCode::EqualVec4:
+        return "EqualVec4";
+    case OpCode::NotEqualVec4:
+        return "NotEqualVec4";
+
+    // Control flow.
+    case OpCode::Jump:
+        return "Jump";
+    case OpCode::JumpIfFalse:
+        return "JumpIfFalse";
+    case OpCode::JumpIfTrue:
+        return "JumpIfTrue";
+    case OpCode::Return:
+        return "Return";
+    }
+
+    return "Unknown";
+}
+
 template<typename T, typename CompareFn>
 static void compareInline(VM& vm, const Instruction& ins, CompareFn compare)
 {
@@ -259,6 +457,11 @@ void VM::execute(const Program& program)
                 pc = static_cast<size_t>(ins.c);
             break;
 
+        case OpCode::JumpIfTrue:
+            if (registers[ins.a].kind == ValueKind::Bool && registers[ins.a].payload != 0)
+                pc = static_cast<size_t>(ins.c);
+            break;
+
         case OpCode::Return:
             return;
 
@@ -270,5 +473,67 @@ void VM::execute(const Program& program)
 #undef KETTLE_CMP_PAYLOAD
 #undef KETTLE_CMP_CONST
     }
+}
+
+std::string formatProgram(const Program& program)
+{
+    std::ostringstream oss;
+
+    oss << "maxRegisterCount=" << int(program.maxRegisterCount) << "\n";
+
+    for (size_t pc = 0; pc < program.code.size(); ++pc)
+    {
+        const Instruction& ins = program.code[pc];
+
+        oss << std::setw(4) << std::setfill('0') << pc << "  ";
+        oss << toString(ins.op);
+
+        switch (ins.op)
+        {
+        case OpCode::LoadValue:
+            oss << " dst=R" << int(ins.a) << " kind=" << toString(static_cast<ValueKind>(ins.b)) << " payload=" << ins.c;
+            break;
+
+        case OpCode::Move:
+            oss << " dst=R" << int(ins.a) << " src=R" << int(ins.b);
+            break;
+
+        case OpCode::CallNative:
+            oss << " firstArg=R" << int(ins.a) << " argCount=" << ins.b << " nativeIndex=" << ins.c;
+            break;
+
+        case OpCode::Jump:
+            oss << " target=" << ins.c;
+            break;
+
+        case OpCode::JumpIfFalse:
+        case OpCode::JumpIfTrue:
+            oss << " cond=R" << int(ins.a) << " target=" << ins.c;
+            break;
+
+        case OpCode::Return:
+        case OpCode::Nop:
+            break;
+
+        default:
+        {
+            oss << " dst=R" << int(ins.a) << " lhs=R" << int(ins.b) << " rhs=R" << int(static_cast<uint8_t>(ins.c));
+            break;
+        }
+        }
+
+        oss << '\n';
+    }
+
+    return oss.str();
+}
+
+void dumpProgram(const Program& program)
+{
+#if KETTLE_DUMP_BYTECODE
+    KETTLE_LOG_INFO("\n", formatProgram(program));
+#else
+    (void)program;
+#endif
 }
 } // namespace kettle

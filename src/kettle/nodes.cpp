@@ -4,7 +4,7 @@
 
 #include "compiler.h"
 
-#include <cstring>
+#include <cstdint>
 #include <stdexcept>
 
 namespace kettle
@@ -145,21 +145,21 @@ static void compileSetPosition(Compiler& c, const NodeRecord& node)
     constexpr uint64_t PositionPin = hash("position");
     constexpr uint64_t PositionProperty = hash("position");
 
-    const uint8_t targetInputReg = c.resolveInputRegister(node.id, TargetPin);
+    const auto targetInput = c.resolveInput(node.id, TargetPin);
 
-    const uint8_t targetReg = c.allocRegisters(2);
-    const uint8_t positionReg = static_cast<uint8_t>(targetReg + 1);
+    const IrValueId targetValue = c.createValue();
+    c.emitMove(targetValue, targetInput.value);
 
-    c.emitMove(targetReg, targetInputReg);
-    c.resolveOrLoadInto(positionReg, node, PositionPin, PositionProperty, ValueKind::Vec3);
+    const IrValueId positionValue = c.createValue();
+    c.resolveOrLoadIntoOperand(positionValue, node, PositionPin, PositionProperty, ValueKind::Vec3);
 
     const uint16_t nativeIndex = c.natives.resolve(NativeSetPosition);
 
     c.emit({
-        .op = OpCode::CallNative,
-        .a = targetReg,
-        .b = 2,
-        .c = nativeIndex,
+        .op = IrOp::CallNative,
+        .result = kInvalidIrValueId,
+        .nativeIndex = nativeIndex,
+        .args = {targetValue, positionValue},
     });
 }
 
@@ -168,17 +168,17 @@ static void compileGetPlayer(Compiler& c, const NodeRecord& node)
     constexpr uint64_t NativeGetPlayer = hash("GetPlayer");
     constexpr uint64_t PlayerPin = hash("player");
 
-    uint8_t resultReg = c.allocRegister();
-    uint16_t nativeIndex = c.natives.resolve(NativeGetPlayer);
+    const IrValueId result = c.createValue();
+    const uint16_t nativeIndex = c.natives.resolve(NativeGetPlayer);
 
     c.emit({
-        .op = OpCode::CallNative,
-        .a = resultReg,
-        .b = 0,
-        .c = nativeIndex,
+        .op = IrOp::CallNative,
+        .result = result,
+        .nativeIndex = nativeIndex,
+        .args = {},
     });
 
-    c.rememberValue(node.id, PlayerPin, resultReg);
+    c.rememberValue(node.id, PlayerPin, result);
 }
 
 static void compileGetHealth(Compiler& c, const NodeRecord& node)
@@ -187,17 +187,19 @@ static void compileGetHealth(Compiler& c, const NodeRecord& node)
     constexpr uint64_t PlayerPin = hash("player");
     constexpr uint64_t HealthPin = hash("health");
 
-    uint8_t playerReg = c.resolveInputRegister(node.id, PlayerPin);
-    uint16_t nativeIndex = c.natives.resolve(NativeGetHealth);
+    const auto player = c.resolveInput(node.id, PlayerPin);
+    const uint16_t nativeIndex = c.natives.resolve(NativeGetHealth);
+
+    const IrValueId result = c.createValue();
 
     c.emit({
-        .op = OpCode::CallNative,
-        .a = playerReg,
-        .b = 1,
-        .c = nativeIndex,
+        .op = IrOp::CallNative,
+        .result = result,
+        .nativeIndex = nativeIndex,
+        .args = {player.value},
     });
 
-    c.rememberValue(node.id, HealthPin, playerReg);
+    c.rememberValue(node.id, HealthPin, result);
 }
 
 static void compileConstant(Compiler& c, const NodeRecord& node)
@@ -209,16 +211,15 @@ static void compileConstant(Compiler& c, const NodeRecord& node)
     const ValueKind valueKind = resolveValueKind(c, node, ValueTypeProp);
     const Value value = c.materializePropertyAsValue(node, ValueProp, valueKind);
 
-    const uint8_t valueReg = c.allocRegister();
+    const IrValueId valueId = c.createValue();
 
     c.emit({
-        .op = OpCode::LoadValue,
-        .a = valueReg,
-        .b = static_cast<uint16_t>(value.kind),
-        .c = value.payload,
+        .op = IrOp::LoadValue,
+        .dst = valueId,
+        .value = value,
     });
 
-    c.rememberValue(node.id, ValuePin, valueReg);
+    c.rememberValue(node.id, ValuePin, valueId);
 }
 
 static void compileCompare(Compiler& c, const NodeRecord& node)
@@ -230,18 +231,20 @@ static void compileCompare(Compiler& c, const NodeRecord& node)
     const ValueKind valueKind = resolveValueKind(c, node, hash("valueType"));
     const OpCode op = resolveCompareOp(c, node, valueKind, hash("op"));
 
-    const uint8_t aReg = c.resolveInputRegister(node.id, APin);
-    const uint8_t bReg = c.resolveInputRegister(node.id, BPin);
-    const uint8_t resultReg = c.allocRegister();
+    const auto a = c.resolveInput(node.id, APin);
+    const auto b = c.resolveInput(node.id, BPin);
+
+    const IrValueId result = c.createValue();
 
     c.emit({
-        .op = op,
-        .a = resultReg,
-        .b = aReg,
-        .c = bReg,
+        .op = IrOp::Compare,
+        .bytecodeOp = op,
+        .dst = result,
+        .src0 = a.value,
+        .src1 = b.value,
     });
 
-    c.rememberValue(node.id, ResultPin, resultReg);
+    c.rememberValue(node.id, ResultPin, result);
 }
 
 static void compilePrint(Compiler& c, const NodeRecord& node)
@@ -250,14 +253,14 @@ static void compilePrint(Compiler& c, const NodeRecord& node)
     constexpr uint64_t MessageProperty = hash("message");
     constexpr uint64_t ValuePin = hash("value");
 
-    const uint8_t argReg = c.resolveOrLoadValue(node, ValuePin, MessageProperty, ValueKind::StringId);
+    auto arg = c.resolveOrLoadValueOperand(node, ValuePin, MessageProperty, ValueKind::StringId);
     const uint16_t nativeIndex = c.natives.resolve(NativePrint);
 
     c.emit({
-        .op = OpCode::CallNative,
-        .a = argReg,
-        .b = 1,
-        .c = nativeIndex,
+        .op = IrOp::CallNative,
+        .result = kInvalidIrValueId,
+        .nativeIndex = nativeIndex,
+        .args = {arg.value},
     });
 }
 
@@ -267,15 +270,15 @@ static void compileBranch(Compiler& c, const NodeRecord& node)
     constexpr uint64_t TruePin = hash("true");
     constexpr uint64_t FalsePin = hash("false");
 
-    uint8_t condReg = c.resolveInputRegister(node.id, ConditionPin);
+    const auto cond = c.resolveInput(node.id, ConditionPin);
 
-    const size_t jumpFalseIndex = c.program.code.size();
-    c.emit({
-        .op = OpCode::JumpIfFalse,
-        .a = condReg,
-        .b = 0,
-        .c = 0,
-    });
+    const IrBlockId trueBlock = c.ir.createBlock();
+    const IrBlockId falseBlock = c.ir.createBlock();
+    const IrBlockId endBlock = c.ir.createBlock();
+
+    c.emitJumpIfFalse(cond.value, falseBlock);
+    c.emitJump(trueBlock);
+    c.ir.setCurrentBlock(trueBlock);
 
     if (const LinkRecord* trueLink = c.graph.findExecLink(node.id, TruePin))
     {
@@ -286,16 +289,9 @@ static void compileBranch(Compiler& c, const NodeRecord& node)
         c.compileNodeWithDependencies(*trueNode);
     }
 
-    const size_t jumpEndIndex = c.program.code.size();
-    c.emit({
-        .op = OpCode::Jump,
-        .a = 0,
-        .b = 0,
-        .c = 0,
-    });
+    c.emitJump(endBlock);
 
-    const size_t falseLabel = c.program.code.size();
-    c.program.code[jumpFalseIndex].c = falseLabel;
+    c.ir.setCurrentBlock(falseBlock);
 
     if (const LinkRecord* falseLink = c.graph.findExecLink(node.id, FalsePin))
     {
@@ -306,8 +302,54 @@ static void compileBranch(Compiler& c, const NodeRecord& node)
         c.compileNodeWithDependencies(*falseNode);
     }
 
-    const size_t endLabel = c.program.code.size();
-    c.program.code[jumpEndIndex].c = endLabel;
+    c.emitJump(endBlock);
+
+    c.ir.setCurrentBlock(endBlock);
+}
+
+static void compileWhile(Compiler& c, const NodeRecord& node)
+{
+    constexpr uint64_t ConditionPin = hash("condition");
+    constexpr uint64_t BodyPin = hash("body");
+    constexpr uint64_t ThenPin = hash("then");
+
+    const IrBlockId conditionBlock = c.ir.createBlock();
+    const IrBlockId bodyBlock = c.ir.createBlock();
+    const IrBlockId afterBlock = c.ir.createBlock();
+
+    c.emitJump(conditionBlock);
+
+    c.ir.setCurrentBlock(conditionBlock);
+
+    c.compileInputDependency(node, ConditionPin);
+
+    const auto cond = c.resolveInput(node.id, ConditionPin);
+
+    c.emitJumpIfFalse(cond.value, afterBlock);
+    c.emitJump(bodyBlock);
+    c.ir.setCurrentBlock(bodyBlock);
+
+    if (const LinkRecord* bodyLink = c.graph.findExecLink(node.id, BodyPin))
+    {
+        const NodeRecord* bodyNode = c.graph.findNode(bodyLink->toNode);
+        if (!bodyNode)
+            throw std::runtime_error("broken while body");
+
+        c.compileNodeWithDependencies(*bodyNode);
+    }
+
+    c.emitJump(conditionBlock);
+
+    c.ir.setCurrentBlock(afterBlock);
+
+    if (const LinkRecord* thenLink = c.graph.findExecLink(node.id, ThenPin))
+    {
+        const NodeRecord* thenNode = c.graph.findNode(thenLink->toNode);
+        if (!thenNode)
+            throw std::runtime_error("broken while continuation");
+
+        c.compileNodeWithDependencies(*thenNode);
+    }
 }
 
 void registerBuiltinNodeCompilers(NodeCompilerRegistry& registry)
@@ -318,6 +360,7 @@ void registerBuiltinNodeCompilers(NodeCompilerRegistry& registry)
     registry.add(hash("Constant"), compileConstant);
     registry.add(hash("Compare"), compileCompare);
     registry.add(hash("Print"), compilePrint);
-    registry.add(hash("Branch"), compileBranch);
+    registry.add(hash("Branch"), compileBranch, DependencyPolicy::Auto, FlowPolicy::OwnsContinuation);
+    registry.add(hash("While"), compileWhile, DependencyPolicy::Manual, FlowPolicy::OwnsContinuation);
 }
 } // namespace kettle

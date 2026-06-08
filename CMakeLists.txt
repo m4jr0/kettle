@@ -42,6 +42,8 @@ option(KETTLE_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(KETTLE_ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(KETTLE_ENABLE_TSAN "Enable ThreadSanitizer" OFF)
 
+option(KETTLE_DEBUG_LOGS "Enable Kettle debug logs" ON)
+
 # Multi-config output ###########################################################
 
 if(CMAKE_CONFIGURATION_TYPES)
@@ -64,9 +66,17 @@ endif()
 add_library(${KETTLE_LIBRARY_NAME}
   src/kettle/bytecode.cpp
   src/kettle/compiler.cpp
-  src/kettle/format.h
+  src/kettle/debug.h
+  src/kettle/format.cpp
   src/kettle/graph_view.cpp
   src/kettle/hash.h
+  src/kettle/ir.cpp
+  src/kettle/ir_utils.cpp
+  src/kettle/ir_analysis.cpp
+  src/kettle/ir_optimization.cpp
+  src/kettle/ir_lowering.cpp
+  src/kettle/ir_format.cpp
+  src/kettle/log.h
   src/kettle/natives.cpp
   src/kettle/nodes.cpp
   src/kettle/value_utils.h
@@ -83,6 +93,8 @@ target_compile_definitions(${KETTLE_LIBRARY_NAME}
     KETTLE_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
     KETTLE_VERSION_MINOR=${PROJECT_VERSION_MINOR}
     KETTLE_VERSION_PATCH=${PROJECT_VERSION_PATCH}
+
+    KETTLE_DEBUG=$<IF:$<CONFIG:Debug>,1,0>
 )
 
 # Executable ###################################################################

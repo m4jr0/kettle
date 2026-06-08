@@ -11,12 +11,16 @@
 
 namespace kettle
 {
-void NodeCompilerRegistry::add(uint64_t nodeTypeId, NodeCompileFn fn)
+void NodeCompilerRegistry::add(uint64_t nodeTypeId, NodeCompileFn fn, DependencyPolicy dependencyPolicy, FlowPolicy flowPolicy)
 {
-    entries[nodeTypeId] = fn;
+    entries[nodeTypeId] = NodeCompilerEntry{
+        .fn = fn,
+        .dependencyPolicy = dependencyPolicy,
+        .flowPolicy = flowPolicy,
+    };
 }
 
-NodeCompileFn NodeCompilerRegistry::resolve(uint64_t nodeTypeId) const
+const NodeCompilerEntry& NodeCompilerRegistry::resolve(uint64_t nodeTypeId) const
 {
     auto it = entries.find(nodeTypeId);
 
@@ -26,106 +30,163 @@ NodeCompileFn NodeCompilerRegistry::resolve(uint64_t nodeTypeId) const
     return it->second;
 }
 
-uint8_t Compiler::allocRegister()
+IrValueId Compiler::createValue()
 {
-    return allocRegisters(1);
+    return nextValue++;
 }
 
-uint8_t Compiler::allocRegisters(uint8_t count)
+void Compiler::emit(IrInstruction ins)
 {
-    if (count == 0)
-        throw std::runtime_error("cannot allocate zero registers");
-
-    if (static_cast<uint16_t>(nextRegister) + count > VM::MaxRegister + 1)
-        throw std::runtime_error("too many registers");
-
-    const uint8_t alloc = nextRegister;
-    nextRegister += count;
-
-    program.registerCount = nextRegister;
-    return alloc;
+    ir.emit(ins);
 }
 
-void Compiler::emit(Instruction ins)
-{
-    program.code.push_back(ins);
-}
-
-void Compiler::emitMove(uint8_t dst, uint8_t src)
+void Compiler::emitMove(IrValueId dst, IrValueId src)
 {
     emit({
-        .op = OpCode::Move,
-        .a = dst,
-        .b = src,
-        .c = 0,
+        .op = IrOp::Move,
+        .dst = dst,
+        .src0 = src,
     });
 }
 
-void Compiler::rememberValue(uint32_t nodeId, uint64_t pinId, uint8_t reg)
+void Compiler::emitJump(IrBlockId target)
 {
-    produced.emplace_back(nodeId, pinId, reg);
+    emit({
+        .op = IrOp::Jump,
+        .targetBlock = target,
+    });
+
+    ir.addSuccessor(ir.currentBlock, target);
 }
 
-uint8_t Compiler::resolveInputRegister(uint32_t nodeId, uint64_t inputPinId) const
+void Compiler::emitJumpIfFalse(IrValueId conditionValue, IrBlockId target)
 {
-    auto reg = tryResolveInputRegister(nodeId, inputPinId);
+    emit({
+        .op = IrOp::JumpIfFalse,
+        .src0 = conditionValue,
+        .targetBlock = target,
+    });
 
-    if (!reg)
+    ir.addSuccessor(ir.currentBlock, target);
+}
+
+void Compiler::rememberValue(uint32_t nodeId, uint64_t pinId, IrValueId value)
+{
+    produced.push_back({
+        .nodeId = nodeId,
+        .pinId = pinId,
+        .value = value,
+    });
+}
+
+ValueOperand Compiler::resolveOrLoadValueOperand(const NodeRecord& node, uint64_t pinId, uint64_t propertyId, ValueKind expectedKind)
+{
+    if (auto input = tryResolveInput(node.id, pinId))
+    {
+        return {
+            .value = input->value,
+            .source = input,
+            .temporary = false,
+        };
+    }
+
+    const Value value = materializePropertyAsValue(node, propertyId, expectedKind);
+    const IrValueId valueId = createValue();
+
+    emit({
+        .op = IrOp::LoadValue,
+        .dst = valueId,
+        .value = value,
+    });
+
+    return {
+        .value = valueId,
+        .source = std::nullopt,
+        .temporary = true,
+    };
+}
+
+ValueOperand Compiler::resolveOrLoadIntoOperand(
+    IrValueId dstValue,
+    const NodeRecord& node,
+    uint64_t pinId,
+    uint64_t propertyId,
+    ValueKind expectedKind
+)
+{
+    if (auto input = tryResolveInput(node.id, pinId))
+    {
+        emitMove(dstValue, input->value);
+
+        return {
+            .value = dstValue,
+            .source = input,
+            .temporary = false,
+        };
+    }
+
+    const Value value = materializePropertyAsValue(node, propertyId, expectedKind);
+
+    emit({
+        .op = IrOp::LoadValue,
+        .dst = dstValue,
+        .value = value,
+    });
+
+    return {
+        .value = dstValue,
+        .source = std::nullopt,
+        .temporary = false,
+    };
+}
+
+ProducedValue* Compiler::findProducedValue(uint32_t nodeId, uint64_t pinId)
+{
+    for (ProducedValue& value : produced)
+    {
+        if (value.nodeId == nodeId && value.pinId == pinId)
+            return &value;
+    }
+
+    return nullptr;
+}
+
+const ProducedValue* Compiler::findProducedValue(uint32_t nodeId, uint64_t pinId) const
+{
+    for (const ProducedValue& value : produced)
+    {
+        if (value.nodeId == nodeId && value.pinId == pinId)
+            return &value;
+    }
+
+    return nullptr;
+}
+
+ResolvedInput Compiler::resolveInput(uint32_t nodeId, uint64_t inputPinId) const
+{
+    auto input = tryResolveInput(nodeId, inputPinId);
+    if (!input)
         throw std::runtime_error("missing input link");
 
-    return *reg;
+    return *input;
 }
 
-std::optional<uint8_t> Compiler::tryResolveInputRegister(uint32_t nodeId, uint64_t inputPinId) const
+std::optional<ResolvedInput> Compiler::tryResolveInput(uint32_t nodeId, uint64_t inputPinId) const
 {
     const LinkRecord* link = graph.findInputLink(nodeId, inputPinId);
-
     if (!link)
         return std::nullopt;
 
-    for (const ProducedValue& value : produced)
-    {
-        if (value.nodeId == link->fromNode && value.pinId == link->fromPinId)
-            return value.reg;
-    }
+    const ProducedValue* value = findProducedValue(link->fromNode, link->fromPinId);
 
-    throw std::runtime_error("input source has not been compiled yet");
-}
+    if (!value)
+        throw std::runtime_error("input source has not been compiled yet");
 
-uint8_t Compiler::resolveOrLoadValue(const NodeRecord& node, uint64_t pinId, uint64_t propertyId, ValueKind expectedKind)
-{
-    if (auto inputReg = tryResolveInputRegister(node.id, pinId))
-        return *inputReg;
-
-    const Value value = materializePropertyAsValue(node, propertyId, expectedKind);
-    const uint8_t reg = allocRegister();
-
-    emit({
-        .op = OpCode::LoadValue,
-        .a = reg,
-        .b = static_cast<uint16_t>(value.kind),
-        .c = value.payload,
-    });
-
-    return reg;
-}
-
-void Compiler::resolveOrLoadInto(uint8_t dstReg, const NodeRecord& node, uint64_t pinId, uint64_t propertyId, ValueKind expectedKind)
-{
-    if (auto inputReg = tryResolveInputRegister(node.id, pinId))
-    {
-        emitMove(dstReg, *inputReg);
-        return;
-    }
-
-    const Value value = materializePropertyAsValue(node, propertyId, expectedKind);
-
-    emit({
-        .op = OpCode::LoadValue,
-        .a = dstReg,
-        .b = static_cast<uint16_t>(value.kind),
-        .c = value.payload,
-    });
+    return ResolvedInput{
+        .sourceNodeId = link->fromNode,
+        .sourcePinId = link->fromPinId,
+        .value = value->value,
+    };
 }
 
 Value Compiler::materializePropertyAsValue(const NodeRecord& node, uint64_t propertyId, ValueKind expected)
@@ -234,10 +295,13 @@ Value Compiler::materializePropertyAsValue(const NodeRecord& node, uint64_t prop
 
 void Compiler::compileFromEventBegin()
 {
+    ir = IrBuilder{};
+    ir.createBlock();
+    ir.setCurrentBlock(ir.program.entryBlock);
+
     constexpr uint64_t EventBeginId = hash("EventBegin");
     constexpr uint64_t ExecPinId = hash("exec");
     constexpr uint64_t ThenPinId = hash("then");
-    constexpr uint64_t Branch = hash("Branch");
 
     const NodeRecord* current = nullptr;
     compileStates.assign(graph.header->nodeCount, CompileState::Unvisited);
@@ -265,7 +329,9 @@ void Compiler::compileFromEventBegin()
 
         compileNodeWithDependencies(*current);
 
-        if (current->typeId == Branch)
+        const NodeCompilerEntry& entry = nodeCompilers.resolve(current->typeId);
+
+        if (entry.flowPolicy == FlowPolicy::OwnsContinuation)
             break;
 
         next = graph.findExecLink(current->id, ThenPinId);
@@ -274,7 +340,18 @@ void Compiler::compileFromEventBegin()
             next = graph.findExecLink(current->id, ExecPinId);
     }
 
-    emit({OpCode::Return, 0, 0, 0});
+    emit({
+        .op = IrOp::Return,
+    });
+
+    optimizeIr(ir.program);
+    program = lowerIrToBytecode(ir.program, std::move(program.constData));
+}
+
+void Compiler::compileNode(const NodeRecord& node)
+{
+    const NodeCompilerEntry& entry = nodeCompilers.resolve(node.typeId);
+    entry.fn(*this, node);
 }
 
 void Compiler::compileNodeWithDependencies(const NodeRecord& node)
@@ -289,31 +366,49 @@ void Compiler::compileNodeWithDependencies(const NodeRecord& node)
 
     state = CompileState::Visiting;
 
-    const PinRecord* firstPin = graph.pins + node.firstPin;
+    const NodeCompilerEntry& entry = nodeCompilers.resolve(node.typeId);
 
-    for (uint32_t i = 0; i < node.pinCount; ++i)
+    if (entry.dependencyPolicy == DependencyPolicy::Auto)
     {
-        const PinRecord& pin = firstPin[i];
+        const PinRecord* firstPin = graph.pins + node.firstPin;
 
-        if (pin.direction != static_cast<uint8_t>(PinDirection::Input))
-            continue;
+        for (uint32_t i = 0; i < node.pinCount; ++i)
+        {
+            const PinRecord& pin = firstPin[i];
 
-        if (pin.valueTypeId == hash("exec"))
-            continue;
+            if (pin.direction != static_cast<uint8_t>(PinDirection::Input))
+                continue;
 
-        const LinkRecord* link = graph.findInputLink(node.id, pin.pinId);
-        if (!link)
-            continue;
+            if (pin.valueTypeId == hash("exec"))
+                continue;
 
-        const NodeRecord* source = graph.findNode(link->fromNode);
-        if (!source)
-            throw std::runtime_error("broken data dependency");
+            const LinkRecord* link = graph.findInputLink(node.id, pin.pinId);
+            if (!link)
+                continue;
 
-        compileNodeWithDependencies(*source);
+            const NodeRecord* source = graph.findNode(link->fromNode);
+            if (!source)
+                throw std::runtime_error("broken data dependency");
+
+            compileNodeWithDependencies(*source);
+        }
     }
 
-    compileNode(node);
+    entry.fn(*this, node);
     state = CompileState::Compiled;
+}
+
+void Compiler::compileInputDependency(const NodeRecord& node, uint64_t inputPinId)
+{
+    const LinkRecord* link = graph.findInputLink(node.id, inputPinId);
+    if (!link)
+        throw std::runtime_error("missing input link");
+
+    const NodeRecord* source = graph.findNode(link->fromNode);
+    if (!source)
+        throw std::runtime_error("broken data dependency");
+
+    compileNodeWithDependencies(*source);
 }
 
 CompileState& Compiler::stateForNode(uint32_t nodeId)
@@ -325,11 +420,5 @@ CompileState& Compiler::stateForNode(uint32_t nodeId)
     }
 
     throw std::runtime_error("node state not found");
-}
-
-void Compiler::compileNode(const NodeRecord& node)
-{
-    NodeCompileFn fn = nodeCompilers.resolve(node.typeId);
-    return fn(*this, node);
 }
 } // namespace kettle

@@ -106,6 +106,28 @@ const LinkRecord* GraphView::findInputLink(uint32_t toNode, uint64_t toPinId) co
     return nullptr;
 }
 
+const PinRecord* GraphView::findPin(const NodeRecord& node, uint64_t pinId) const
+{
+    const PinRecord* nodePins = this->pins + node.firstPin;
+
+    for (uint32_t i = 0; i < node.pinCount; ++i)
+    {
+        if (nodePins[i].pinId == pinId)
+            return &nodePins[i];
+    }
+
+    return nullptr;
+}
+
+const PinRecord* GraphView::findPin(uint32_t nodeId, uint64_t pinId) const
+{
+    const NodeRecord* node = findNode(nodeId);
+    if (!node)
+        return nullptr;
+
+    return findPin(*node, pinId);
+}
+
 std::string_view GraphView::findDebugString(uint64_t stringId) const
 {
     uint32_t offset = 0;

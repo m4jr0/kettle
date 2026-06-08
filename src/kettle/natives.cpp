@@ -118,6 +118,8 @@ static void nativeGetPlayer(Value*, uint8_t, uint16_t, Value* result)
 
 static void nativeGetHealth(Value* registers, uint8_t firstArg, uint16_t argCount, Value* result)
 {
+    static float health = 40.0f;
+
     if (argCount != 1)
         throw std::runtime_error("GetHealth expects 1 arg");
 
@@ -126,10 +128,9 @@ static void nativeGetHealth(Value* registers, uint8_t firstArg, uint16_t argCoun
     if (player.kind != ValueKind::ObjectHandle)
         throw std::runtime_error("GetHealth expects object handle");
 
-    float health = -5.0f;
-
     uint32_t bits = 0;
     std::memcpy(&bits, &health, sizeof(float));
+    health -= 10.0f;
 
     *result = Value{ValueKind::Float32, bits};
 }

@@ -46,6 +46,7 @@ const KETTLE_NODE_TYPES = Object.freeze({
     CONSTANT: "Constant",
     COMPARE: "Compare",
     BRANCH: "Branch",
+    WHILE: "While",
     PRINT: "Print",
     SET_POSITION: "SetPosition",
 });
@@ -282,6 +283,18 @@ const NODE_DEFS = {
         outputs: [
             ["true", KETTLE_TYPES.EXEC],
             ["false", KETTLE_TYPES.EXEC],
+        ],
+        properties: {},
+    },
+
+    [KETTLE_NODE_TYPES.WHILE]: {
+        inputs: [
+            ["exec", KETTLE_TYPES.EXEC],
+            ["condition", KETTLE_TYPES.BOOL],
+        ],
+        outputs: [
+            ["body", KETTLE_TYPES.EXEC],
+            ["then", KETTLE_TYPES.EXEC],
         ],
         properties: {},
     },

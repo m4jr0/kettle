@@ -39,6 +39,9 @@ struct GraphView
     const LinkRecord* findExecLink(uint32_t fromNode, uint64_t fromPinId) const;
     const LinkRecord* findInputLink(uint32_t toNode, uint64_t toPinId) const;
 
+    const PinRecord* findPin(const NodeRecord& node, uint64_t pinId) const;
+    const PinRecord* findPin(uint32_t nodeId, uint64_t pinId) const;
+
     std::string_view findDebugString(uint64_t stringId) const;
 
     template<typename T>

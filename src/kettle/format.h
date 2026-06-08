@@ -49,6 +49,8 @@ enum class ValueKind : uint8_t
     Blob = 17,
 };
 
+const char* toString(ValueKind kind);
+
 struct Value
 {
     ValueKind kind = ValueKind::None;

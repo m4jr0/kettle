@@ -11,6 +11,7 @@
 #include "bytecode.h"
 #include "graph_view.h"
 #include "hash.h"
+#include "ir.h"
 
 namespace kettle
 {
@@ -21,16 +22,62 @@ enum class CompileState : uint8_t
     Compiled,
 };
 
+struct ProducedValue
+{
+    uint32_t nodeId;
+    uint64_t pinId;
+    IrValueId value;
+};
+
+struct ResolvedInput
+{
+    uint32_t sourceNodeId;
+    uint64_t sourcePinId;
+    IrValueId value;
+};
+
+struct ValueOperand
+{
+    IrValueId value = kInvalidIrValueId;
+    std::optional<ResolvedInput> source;
+    bool temporary = false;
+};
+
 struct Compiler;
 
 using NodeCompileFn = void (*)(Compiler&, const NodeRecord&);
 
+enum class DependencyPolicy : uint8_t
+{
+    Auto,
+    Manual,
+};
+
+enum class FlowPolicy : uint8_t
+{
+    Linear,
+    OwnsContinuation,
+};
+
+struct NodeCompilerEntry
+{
+    NodeCompileFn fn = nullptr;
+    DependencyPolicy dependencyPolicy = DependencyPolicy::Auto;
+    FlowPolicy flowPolicy = FlowPolicy::Linear;
+};
+
 struct NodeCompilerRegistry
 {
-    std::unordered_map<uint64_t, NodeCompileFn> entries;
+    std::unordered_map<uint64_t, NodeCompilerEntry> entries;
 
-    void add(uint64_t nodeTypeId, NodeCompileFn fn);
-    NodeCompileFn resolve(uint64_t nodeTypeId) const;
+    void add(
+        uint64_t nodeTypeId,
+        NodeCompileFn fn,
+        DependencyPolicy dependencyPolicy = DependencyPolicy::Auto,
+        FlowPolicy flowPolicy = FlowPolicy::Linear
+    );
+
+    const NodeCompilerEntry& resolve(uint64_t nodeTypeId) const;
 };
 
 struct Compiler
@@ -39,35 +86,37 @@ struct Compiler
     const NativeRegistry& natives;
     const NodeCompilerRegistry& nodeCompilers;
 
+    IrBuilder ir;
     Program program;
-    uint8_t nextRegister = 0;
-
-    struct ProducedValue
-    {
-        uint32_t nodeId;
-        uint64_t pinId;
-        uint8_t reg;
-    };
+    IrValueId nextValue = 0;
 
     std::vector<ProducedValue> produced;
     std::vector<CompileState> compileStates;
 
-    uint8_t allocRegister();
-    uint8_t allocRegisters(uint8_t count);
-    void emit(Instruction ins);
-    void emitMove(uint8_t dst, uint8_t src);
+    IrValueId createValue();
 
-    void rememberValue(uint32_t nodeId, uint64_t pinId, uint8_t reg);
-    uint8_t resolveInputRegister(uint32_t nodeId, uint64_t inputPinId) const;
-    std::optional<uint8_t> tryResolveInputRegister(uint32_t nodeId, uint64_t inputPinId) const;
-    uint8_t resolveOrLoadValue(const NodeRecord& node, uint64_t pinId, uint64_t propertyId, ValueKind expectedKind);
-    void resolveOrLoadInto(uint8_t dstReg, const NodeRecord& node, uint64_t pinId, uint64_t propertyId, ValueKind expectedKind);
+    void emit(IrInstruction ins);
+    void emitMove(IrValueId dst, IrValueId src);
+    void emitJump(IrBlockId target);
+    void emitJumpIfFalse(IrValueId conditionValue, IrBlockId target);
+
+    void rememberValue(uint32_t nodeId, uint64_t pinId, IrValueId value);
+
+    ProducedValue* findProducedValue(uint32_t nodeId, uint64_t pinId);
+    const ProducedValue* findProducedValue(uint32_t nodeId, uint64_t pinId) const;
+
+    ResolvedInput resolveInput(uint32_t nodeId, uint64_t inputPinId) const;
+    std::optional<ResolvedInput> tryResolveInput(uint32_t nodeId, uint64_t inputPinId) const;
+
+    ValueOperand resolveOrLoadValueOperand(const NodeRecord& node, uint64_t pinId, uint64_t propertyId, ValueKind expectedKind);
+    ValueOperand resolveOrLoadIntoOperand(IrValueId dstValue, const NodeRecord& node, uint64_t pinId, uint64_t propertyId, ValueKind expectedKind);
 
     Value materializePropertyAsValue(const NodeRecord& node, uint64_t propertyId, ValueKind expected);
 
     void compileFromEventBegin();
     void compileNode(const NodeRecord& node);
     void compileNodeWithDependencies(const NodeRecord& node);
+    void compileInputDependency(const NodeRecord& node, uint64_t inputPinId);
 
     CompileState& stateForNode(uint32_t nodeId);
 };
